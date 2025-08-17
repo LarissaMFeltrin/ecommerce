@@ -289,7 +289,7 @@ Este projeto está licenciado sob a Licença MIT - veja o arquivo [LICENSE](LICE
 
 - **Issues**: [GitHub Issues](https://github.com/seu-usuario/ecommerce-laravel/issues)
 - **Documentação**: [Wiki do Projeto](https://github.com/seu-usuario/ecommerce-laravel/wiki)
-- **Email**: suporte@seudominio.com
+- **Email**: lari-feltrin@hotmail.com
 
 ## 🙏 Agradecimentos
 
