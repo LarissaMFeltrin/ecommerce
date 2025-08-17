@@ -1,0 +1,73 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ecommerce_app
+    restart: unless-stopped
+    working_dir: /var/www/
+    volumes:
+      - ./:/var/www
+      - ./docker/php/local.ini:/usr/local/etc/php/conf.d/local.ini
+    networks:
+      - ecommerce_network
+
+  db:
+    image: mysql:8.0
+    container_name: ecommerce_db
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ecommerce
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_PASSWORD: secret
+      MYSQL_USER: ecommerce
+      SERVICE_TAGS: dev
+      SERVICE_NAME: mysql
+    ports:
+      - "3306:3306"
+    volumes:
+      - ./docker/mysql/data:/var/lib/mysql
+      - ./docker/mysql/my.cnf:/etc/mysql/my.cnf
+    networks:
+      - ecommerce_network
+
+  nginx:
+    image: nginx:alpine
+    container_name: ecommerce_nginx
+    restart: unless-stopped
+    ports:
+      - "8000:80"
+    volumes:
+      - ./:/var/www
+      - ./docker/nginx/conf.d/:/etc/nginx/conf.d/
+    networks:
+      - ecommerce_network
+
+  redis:
+    image: redis:alpine
+    container_name: ecommerce_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    networks:
+      - ecommerce_network
+
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: ecommerce_mailhog
+    restart: unless-stopped
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+    networks:
+      - ecommerce_network
+
+networks:
+  ecommerce_network:
+    driver: bridge
+
+volumes:
+  dbdata:
+    driver: local

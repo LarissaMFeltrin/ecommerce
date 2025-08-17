@@ -1,0 +1,162 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: password
+          MYSQL_DATABASE: ecommerce_test
+        ports:
+          - 3306:3306
+        options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=3
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup PHP
+      uses: shivammathur/setup-php@v2
+      with:
+        php-version: '8.2'
+        extensions: mbstring, xml, ctype, iconv, intl, pdo_mysql, openssl, tokenizer, bcmath, json
+        coverage: xdebug
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+
+    - name: Install Composer dependencies
+      run: composer install --prefer-dist --no-progress
+
+    - name: Install NPM dependencies
+      run: npm ci
+
+    - name: Copy environment file
+      run: cp .env.example .env
+
+    - name: Generate application key
+      run: php artisan key:generate
+
+    - name: Configure database
+      run: |
+        php artisan config:cache
+        php artisan config:set database.connections.mysql.host=127.0.0.1
+        php artisan config:set database.connections.mysql.port=3306
+        php artisan config:set database.connections.mysql.database=ecommerce_test
+        php artisan config:set database.connections.mysql.username=root
+        php artisan config:set database.connections.mysql.password=password
+
+    - name: Run database migrations
+      run: php artisan migrate --force
+
+    - name: Run tests
+      run: php artisan test --coverage-clover=coverage.xml
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+        flags: unittests
+        name: codecov-umbrella
+        fail_ci_if_error: true
+
+  code-quality:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup PHP
+      uses: shivammathur/setup-php@v2
+      with:
+        php-version: '8.2'
+        extensions: mbstring, xml, ctype, iconv, intl, pdo_mysql, openssl, tokenizer, bcmath, json
+
+    - name: Install Composer dependencies
+      run: composer install --prefer-dist --no-progress
+
+    - name: Run PHP CS Fixer
+      run: vendor/bin/php-cs-fixer fix --dry-run --diff
+
+    - name: Run PHPStan
+      run: vendor/bin/phpstan analyse app --level=8
+
+    - name: Run Laravel Pint
+      run: vendor/bin/pint --test
+
+  security:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup PHP
+      uses: shivammathur/setup-php@v2
+      with:
+        php-version: '8.2'
+        extensions: mbstring, xml, ctype, iconv, intl, pdo_mysql, openssl, tokenizer, bcmath, json
+
+    - name: Install Composer dependencies
+      run: composer install --prefer-dist --no-progress
+
+    - name: Run Security Check
+      run: vendor/bin/security-checker security:check composer.lock
+
+  build:
+    needs: [test, code-quality, security]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+
+    - name: Install NPM dependencies
+      run: npm ci
+
+    - name: Build assets
+      run: npm run build
+
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: build-files
+        path: public/build/
+
+  deploy-staging:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/develop'
+    environment: staging
+    
+    steps:
+    - name: Deploy to staging
+      run: echo "Deploy to staging environment"
+      # Adicione aqui os comandos de deploy para staging
+
+  deploy-production:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    environment: production
+    
+    steps:
+    - name: Deploy to production
+      run: echo "Deploy to production environment"
+      # Adicione aqui os comandos de deploy para produção

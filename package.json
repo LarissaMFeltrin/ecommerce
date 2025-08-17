@@ -1,0 +1,11 @@
+{
+    "$schema": "https://json.schemastore.org/package.json",
+    "private": true,
+    "scripts": {
+        "build": "echo 'Build completed'",
+        "dev": "echo 'Dev mode'"
+    },
+    "devDependencies": {
+        "axios": "^1.6.0"
+    }
+}

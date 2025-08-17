@@ -1,0 +1,28 @@
+parameters:
+    level: 8
+    paths:
+        - app
+        - config
+        - database
+        - routes
+        - tests
+    
+    excludePaths:
+        - app/Console/Kernel.php
+        - app/Exceptions/Handler.php
+        - app/Http/Kernel.php
+        - app/Providers/AppServiceProvider.php
+        - app/Providers/AuthServiceProvider.php
+        - app/Providers/EventServiceProvider.php
+        - app/Providers/RouteServiceProvider.php
+    
+    checkMissingIterableValueType: false
+    checkGenericClassInNonGenericObjectType: false
+    
+    ignoreErrors:
+        - '#Call to an undefined method Illuminate\\Database\\Eloquent\\Builder::#'
+        - '#Call to an undefined method Illuminate\\Database\\Eloquent\\Model::#'
+        - '#Call to an undefined method Illuminate\\Support\\Collection::#'
+        - '#Call to an undefined method Illuminate\\Http\\Request::#'
+        - '#Call to an undefined method Illuminate\\Http\\Response::#'
+        - '#Call to an undefined method Illuminate\\View\\View::#'
