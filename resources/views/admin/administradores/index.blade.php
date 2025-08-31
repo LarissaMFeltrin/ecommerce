@@ -2,6 +2,64 @@
 
 @section('title', 'Administradores')
 
+@push('styles')
+    <style>
+        .btn-actions {
+            min-width: 50px;
+            font-size: 0.75rem;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            text-decoration: none;
+            border: 1px solid transparent;
+            transition: all 0.2s ease-in-out;
+            padding: 0.25rem 0.5rem;
+        }
+
+        .btn-actions:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .btn-actions i {
+            font-size: 0.8rem;
+            margin-right: 0.2rem;
+        }
+
+        .table td {
+            vertical-align: middle;
+        }
+
+        .gap-1 {
+            gap: 0.2rem !important;
+        }
+
+        .btn-sm {
+            padding: 0.25rem 0.5rem;
+            font-size: 0.75rem;
+            border-radius: 0.25rem;
+        }
+
+        /* Suporte para ícones Bootstrap */
+        .btn-actions .bi {
+            font-size: 0.9rem;
+        }
+
+        /* Fallback para ícones caso não carreguem */
+        .btn-actions .bi.bi-eye::before {
+            content: "👁";
+        }
+
+        .btn-actions .bi.bi-pencil::before {
+            content: "✏";
+        }
+
+        .btn-actions .bi.bi-person-x::before {
+            content: "🚫";
+        }
+    </style>
+@endpush
+
 @section('content')
     <div class="row mb-4">
         <div class="col-md-8">
@@ -92,15 +150,17 @@
                                         </div>
                                     </td>
                                     <td class="text-center">
-                                        <div class="btn-group" role="group">
-                                            <button type="button" class="btn btn-sm btn-outline-info" title="Ver detalhes">
+                                        <div class="d-flex gap-1 justify-content-center">
+                                            <button type="button" class="btn btn-sm btn-outline-info btn-actions"
+                                                title="Ver detalhes">
                                                 <i class="bi bi-eye"></i>
                                             </button>
-                                            <button type="button" class="btn btn-sm btn-outline-warning" title="Editar">
+                                            <button type="button" class="btn btn-sm btn-outline-warning btn-actions"
+                                                title="Editar">
                                                 <i class="bi bi-pencil"></i>
                                             </button>
                                             @if ($admin->tipo !== 'super_admin')
-                                                <button type="button" class="btn btn-sm btn-outline-danger"
+                                                <button type="button" class="btn btn-sm btn-outline-danger btn-actions"
                                                     title="Desativar">
                                                     <i class="bi bi-person-x"></i>
                                                 </button>
@@ -181,3 +241,46 @@
         </div>
     </div>
 @endsection
+
+@push('scripts')
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Verificar se os ícones Bootstrap estão funcionando
+            const icons = document.querySelectorAll('.bi');
+            let biWorking = false;
+
+            // Testar se Bootstrap Icons está funcionando
+            if (icons.length > 0) {
+                const testIcon = icons[0];
+                const computedStyle = window.getComputedStyle(testIcon, '::before');
+                biWorking = computedStyle.content !== 'none' && computedStyle.content !== '';
+            }
+
+            if (!biWorking) {
+                console.log('Bootstrap Icons não está funcionando, aplicando fallback');
+                // Aplicar fallback visual
+                icons.forEach(icon => {
+                    const iconClass = Array.from(icon.classList).find(cls => cls.startsWith('bi-'));
+                    if (iconClass) {
+                        icon.style.fontFamily = 'monospace';
+                        icon.style.fontSize = '1.2em';
+
+                        // Mapear classes para emojis
+                        const fallbackMap = {
+                            'bi-eye': '👁',
+                            'bi-pencil': '✏',
+                            'bi-person-x': '🚫',
+                            'bi-shield-check': '🛡️',
+                            'bi-people': '👥',
+                            'bi-plus-circle': '➕'
+                        };
+
+                        if (fallbackMap[iconClass]) {
+                            icon.textContent = fallbackMap[iconClass];
+                        }
+                    }
+                });
+            }
+        });
+    </script>
+@endpush

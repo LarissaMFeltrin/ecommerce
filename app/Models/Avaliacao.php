@@ -15,27 +15,22 @@ class Avaliacao extends Model
         'id_usuario',
         'id_produto',
         'nota',
-        'titulo',
         'comentario',
-        'recomenda',
-        'status',
-        'votos_uteis',
-        'votos_nao_uteis',
-        'resposta_admin',
-        'respondido_em',
+        'aprovada',
+        'empresa_id',
     ];
 
     protected $casts = [
         'nota' => 'integer',
-        'recomenda' => 'boolean',
-        'votos_uteis' => 'integer',
-        'votos_nao_uteis' => 'integer',
-        'respondido_em' => 'datetime',
-        'created_at' => 'datetime',
-        'updated_at' => 'datetime',
+        'aprovada' => 'boolean',
     ];
 
     // Relacionamentos
+    public function empresa()
+    {
+        return $this->belongsTo(Empresa::class, 'empresa_id');
+    }
+
     public function usuario()
     {
         return $this->belongsTo(Usuario::class, 'id_usuario');
@@ -47,105 +42,44 @@ class Avaliacao extends Model
     }
 
     // Scopes
+    public function scopeAprovada($query)
+    {
+        return $query->where('aprovada', true);
+    }
+
+    public function scopePendente($query)
+    {
+        return $query->where('aprovada', false);
+    }
+
     public function scopePorProduto($query, $produtoId)
     {
         return $query->where('id_produto', $produtoId);
     }
 
-    public function scopePorNota($query, $nota)
+    public function scopePorUsuario($query, $usuarioId)
     {
-        return $query->where('nota', $nota);
+        return $query->where('id_usuario', $usuarioId);
     }
 
-    public function scopeAprovadas($query)
+    public function scopePorEmpresa($query, $empresaId)
     {
-        return $query->where('status', 'aprovado');
+        return $query->where('empresa_id', $empresaId);
     }
 
-    public function scopePendentes($query)
+    public function scopeRecentes($query)
     {
-        return $query->where('status', 'pendente');
-    }
-
-    public function scopeRejeitadas($query)
-    {
-        return $query->where('status', 'rejeitada');
+        return $query->orderBy('created_at', 'desc');
     }
 
     // Acessors
+    public function getStatusAttribute()
+    {
+        return $this->aprovada ? 'Aprovada' : 'Pendente';
+    }
+
     public function getNotaFormatadaAttribute()
     {
-        return $this->nota . '/5';
-    }
-
-    public function getEstrelasAttribute()
-    {
-        return str_repeat('★', $this->nota) . str_repeat('☆', 5 - $this->nota);
-    }
-
-    public function getStatusFormatadoAttribute()
-    {
-        $status = [
-            'pendente' => 'Pendente',
-            'aprovado' => 'Aprovado',
-            'rejeitada' => 'Rejeitada'
-        ];
-
-        return $status[$this->status] ?? $this->status;
-    }
-
-    public function getRecomendaFormatadoAttribute()
-    {
-        return $this->recomenda ? 'Sim' : 'Não';
-    }
-
-    // Mutators
-    public function setTituloAttribute($value)
-    {
-        $this->attributes['titulo'] = ucfirst($value);
-    }
-
-    public function setComentarioAttribute($value)
-    {
-        $this->attributes['comentario'] = ucfirst($value);
-    }
-
-    // Métodos auxiliares
-    public function podeEditar()
-    {
-        return in_array($this->status, ['pendente', 'aprovado']);
-    }
-
-    public function podeExcluir()
-    {
-        return $this->status !== 'rejeitada';
-    }
-
-    public function marcarComoUtil()
-    {
-        $this->increment('votos_uteis');
-    }
-
-    public function marcarComoNaoUtil()
-    {
-        $this->increment('votos_nao_uteis');
-    }
-
-    public function aprovar()
-    {
-        $this->update(['status' => 'aprovado']);
-    }
-
-    public function rejeitar()
-    {
-        $this->update(['status' => 'rejeitada']);
-    }
-
-    public function responder($resposta)
-    {
-        $this->update([
-            'resposta_admin' => $resposta,
-            'respondido_em' => now()
-        ]);
+        return number_format($this->nota, 1);
     }
 }

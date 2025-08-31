@@ -13,18 +13,40 @@ class FormaPagamento extends Model
 
     protected $fillable = [
         'nome',
-        'codigo_sistema',
+        'codigo',
         'ativo',
+        'empresa_id',
     ];
 
     protected $casts = [
         'ativo' => 'boolean',
     ];
 
+    // Relacionamentos
+    public function empresa()
+    {
+        return $this->belongsTo(Empresa::class, 'empresa_id');
+    }
+
+    public function pagamentos()
+    {
+        return $this->hasMany(Pagamento::class, 'forma_pagamento', 'codigo');
+    }
+
     // Scopes
     public function scopeAtivo($query)
     {
         return $query->where('ativo', true);
+    }
+
+    public function scopePorEmpresa($query, $empresaId)
+    {
+        return $query->where('empresa_id', $empresaId);
+    }
+
+    public function scopePorCodigo($query, $codigo)
+    {
+        return $query->where('codigo', $codigo);
     }
 
     // Acessors
@@ -34,10 +56,21 @@ class FormaPagamento extends Model
             'pix' => 'PIX',
             'cartao_credito' => 'Cartão de Crédito',
             'cartao_debito' => 'Cartão de Débito',
-            'boleto' => 'Boleto Bancário',
-            'dinheiro' => 'Dinheiro',
+            'boleto' => 'Boleto'
         ];
 
-        return $nomes[$this->codigo_sistema] ?? $this->nome;
+        return $nomes[$this->codigo] ?? $this->nome;
+    }
+
+    public function getIconeAttribute()
+    {
+        $icones = [
+            'pix' => 'fas fa-qrcode',
+            'cartao_credito' => 'fas fa-credit-card',
+            'cartao_debito' => 'fas fa-credit-card',
+            'boleto' => 'fas fa-barcode'
+        ];
+
+        return $icones[$this->codigo] ?? 'fas fa-money-bill';
     }
 }

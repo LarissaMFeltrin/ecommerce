@@ -4,6 +4,46 @@
 @section('page-title', 'Gerenciar Categorias')
 @section('page-subtitle', 'Organize seus produtos em categorias')
 
+@push('styles')
+    <style>
+        .btn-actions {
+            min-width: 50px;
+            font-size: 0.75rem;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            text-decoration: none;
+            border: 1px solid transparent;
+            transition: all 0.2s ease-in-out;
+            padding: 0.25rem 0.5rem;
+        }
+
+        .btn-actions:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .btn-actions i {
+            font-size: 0.8rem;
+            margin-right: 0.2rem;
+        }
+
+        .table td {
+            vertical-align: middle;
+        }
+
+        .gap-1 {
+            gap: 0.2rem !important;
+        }
+
+        .btn-sm {
+            padding: 0.25rem 0.5rem;
+            font-size: 0.75rem;
+            border-radius: 0.25rem;
+        }
+    </style>
+@endpush
+
 @section('content')
     <div class="row mb-4">
         <div class="col-md-8">
@@ -26,22 +66,22 @@
                                     <div class="invalid-feedback">{{ $message }}</div>
                                 @enderror
                             </div>
-                            <div class="col-md-5">
+                            <div class="col-md-4">
                                 <input type="text" name="descricao" class="form-control"
                                     placeholder="Descrição (opcional)" value="{{ old('descricao') }}">
                             </div>
                             <div class="col-md-2">
                                 <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" name="ativo" value="1"
-                                        {{ old('ativo', true) ? 'checked' : '' }}>
-                                    <label class="form-check-label" for="ativo">
+                                    <input class="form-check-input" type="checkbox" name="ativa" value="1"
+                                        {{ old('ativa', true) ? 'checked' : '' }}>
+                                    <label class="form-check-label" for="ativa">
                                         Ativa
                                     </label>
                                 </div>
                             </div>
-                            <div class="col-md-1">
-                                <button type="submit" class="btn btn-success w-100">
-                                    <i class="bi bi-check"></i>
+                            <div class="col-md-2">
+                                <button type="submit" class="btn btn-success w-100" title="Adicionar Categoria">
+                                    <i class="bi bi-plus-lg me-1"></i>Adicionar
                                 </button>
                             </div>
                         </div>
@@ -60,7 +100,7 @@
                             </div>
                         </div>
                         <div class="col-6">
-                            <h4 class="text-success mb-1">{{ $categorias->where('ativo', true)->count() }}</h4>
+                            <h4 class="text-success mb-1">{{ $categorias->where('ativa', true)->count() }}</h4>
                             <small class="text-muted">Ativas</small>
                         </div>
                     </div>
@@ -119,16 +159,28 @@
                                         @endif
                                     </td>
                                     <td class="text-center">
-                                        @if ($categoria->ativo)
+                                        @if ($categoria->ativa)
                                             <span class="badge bg-success">Ativa</span>
                                         @else
                                             <span class="badge bg-secondary">Inativa</span>
                                         @endif
+                                        <br>
+                                        <small>
+                                            <button type="button"
+                                                class="btn btn-sm {{ $categoria->ativa ? 'btn-outline-warning' : 'btn-outline-success' }}"
+                                                onclick="toggleStatus({{ $categoria->id }}, {{ $categoria->ativa ? 'false' : 'true' }})"
+                                                title="{{ $categoria->ativa ? 'Desativar categoria' : 'Ativar categoria' }}">
+                                                <i
+                                                    class="bi bi-{{ $categoria->ativa ? 'pause-circle' : 'play-circle' }}"></i>
+                                                {{ $categoria->ativa ? 'Desativar' : 'Ativar' }}
+                                            </button>
+                                        </small>
                                     </td>
                                     <td class="text-center">
-                                        <div class="btn-group" role="group">
-                                            <button type="button" class="btn btn-sm btn-outline-warning" title="Editar"
-                                                onclick="editarCategoria({{ $categoria->id }}, '{{ $categoria->nome }}', '{{ $categoria->descricao }}', {{ $categoria->ativo ? 'true' : 'false' }})">
+                                        <div class="d-flex gap-1 justify-content-center">
+                                            <button type="button" class="btn btn-outline-warning btn-sm btn-actions"
+                                                title="Editar Categoria"
+                                                onclick="editarCategoria({{ $categoria->id }}, '{{ $categoria->nome }}', '{{ $categoria->descricao }}', {{ $categoria->ativa ? 'true' : 'false' }})">
                                                 <i class="bi bi-pencil"></i>
                                             </button>
 
@@ -139,15 +191,16 @@
                                                     data-confirm="Tem certeza que deseja excluir esta categoria?">
                                                     @csrf
                                                     @method('DELETE')
-                                                    <button type="submit" class="btn btn-sm btn-outline-danger"
-                                                        title="Excluir">
+                                                    <button type="submit" class="btn btn-outline-danger btn-sm btn-actions"
+                                                        title="Excluir Categoria">
                                                         <i class="bi bi-trash"></i>
                                                     </button>
                                                 </form>
                                             @else
-                                                <button type="button" class="btn btn-sm btn-outline-danger"
-                                                    title="Não pode excluir (possui produtos)" disabled>
-                                                    <i class="bi bi-trash"></i>
+                                                <button type="button" class="btn btn-outline-secondary btn-sm btn-actions"
+                                                    disabled
+                                                    title="Não pode excluir (possui {{ $categoria->produtos_count }} produto(s))">
+                                                    <i class="bi bi-lock"></i>
                                                 </button>
                                             @endif
                                         </div>
@@ -185,7 +238,9 @@
         <div class="modal-dialog">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">Editar Categoria</h5>
+                    <h5 class="modal-title">
+                        <i class="bi bi-pencil me-2"></i>Editar Categoria
+                    </h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <form id="editarCategoriaForm" method="POST">
@@ -199,22 +254,28 @@
 
                         <div class="mb-3">
                             <label for="edit_descricao" class="form-label">Descrição</label>
-                            <textarea class="form-control" id="edit_descricao" name="descricao" rows="3"></textarea>
+                            <textarea class="form-control" id="edit_descricao" name="descricao" rows="3"
+                                placeholder="Descrição opcional da categoria"></textarea>
                         </div>
 
                         <div class="mb-3">
                             <div class="form-check">
-                                <input class="form-check-input" type="checkbox" id="edit_ativo" name="ativo"
+                                <input class="form-check-input" type="checkbox" id="edit_ativa" name="ativa"
                                     value="1">
-                                <label class="form-check-label" for="edit_ativo">
+                                <label class="form-check-label" for="edit_ativa">
                                     Categoria ativa
                                 </label>
+                                <div class="form-text">Categorias inativas não aparecem no catálogo público.</div>
                             </div>
                         </div>
                     </div>
                     <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                        <button type="submit" class="btn btn-primary">Salvar Alterações</button>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                            <i class="bi bi-x-circle me-1"></i>Cancelar
+                        </button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-check-circle me-1"></i>Salvar Alterações
+                        </button>
                     </div>
                 </form>
             </div>
@@ -227,7 +288,7 @@
             <div class="card text-center">
                 <div class="card-body">
                     <i class="bi bi-tags text-primary display-6"></i>
-                    <h4 class="text-primary mt-2">{{ $categorias->where('ativo', true)->count() }}</h4>
+                    <h4 class="text-primary mt-2">{{ $categorias->where('ativa', true)->count() }}</h4>
                     <p class="text-muted mb-0">Categorias Ativas</p>
                 </div>
             </div>
@@ -237,7 +298,7 @@
             <div class="card text-center">
                 <div class="card-body">
                     <i class="bi bi-tag text-secondary display-6"></i>
-                    <h4 class="text-secondary mt-2">{{ $categorias->where('ativo', false)->count() }}</h4>
+                    <h4 class="text-secondary mt-2">{{ $categorias->where('ativa', false)->count() }}</h4>
                     <p class="text-muted mb-0">Categorias Inativas</p>
                 </div>
             </div>
@@ -268,12 +329,12 @@
 
 @push('scripts')
     <script>
-        function editarCategoria(id, nome, descricao, ativo) {
+        function editarCategoria(id, nome, descricao, ativa) {
             const modal = document.getElementById('editarCategoriaModal');
             const form = document.getElementById('editarCategoriaForm');
             const nomeInput = document.getElementById('edit_nome');
             const descricaoTextarea = document.getElementById('edit_descricao');
-            const ativoCheckbox = document.getElementById('edit_ativo');
+            const ativaCheckbox = document.getElementById('edit_ativa');
 
             // Configurar o formulário
             form.action = `/admin/categorias/${id}`;
@@ -281,10 +342,30 @@
             // Preencher os campos
             nomeInput.value = nome;
             descricaoTextarea.value = descricao || '';
-            ativoCheckbox.checked = ativo;
+            ativaCheckbox.checked = ativa;
 
             // Abrir modal
             new bootstrap.Modal(modal).show();
+        }
+
+        function toggleStatus(id, newStatus) {
+            const confirmMessage = newStatus ? 'Tem certeza que deseja ativar esta categoria?' :
+                'Tem certeza que deseja desativar esta categoria?';
+            if (confirm(confirmMessage)) {
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.action = `{{ route('admin.categorias.index') }}/${id}/toggle-status`;
+                form.style.display = 'none';
+
+                const csrfInput = document.createElement('input');
+                csrfInput.type = 'hidden';
+                csrfInput.name = '_token';
+                csrfInput.value = '{{ csrf_token() }}';
+                form.appendChild(csrfInput);
+
+                document.body.appendChild(form);
+                form.submit();
+            }
         }
 
         // Confirm delete actions
@@ -292,11 +373,32 @@
             const deleteForms = document.querySelectorAll('form[data-confirm]');
             deleteForms.forEach(function(form) {
                 form.addEventListener('submit', function(e) {
-                    if (!confirm(this.dataset.confirm)) {
+                    const message = this.dataset.confirm;
+                    if (!confirm(message)) {
                         e.preventDefault();
                     }
                 });
             });
+
+            // Adicionar feedback visual para o formulário de criação
+            const createForm = document.querySelector('form[action*="categorias/store"]');
+            if (createForm) {
+                createForm.addEventListener('submit', function() {
+                    const submitBtn = this.querySelector('button[type="submit"]');
+                    submitBtn.disabled = true;
+                    submitBtn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Adicionando...';
+                });
+            }
+
+            // Adicionar feedback visual para o formulário de edição
+            const editForm = document.getElementById('editarCategoriaForm');
+            if (editForm) {
+                editForm.addEventListener('submit', function() {
+                    const submitBtn = this.querySelector('button[type="submit"]');
+                    submitBtn.disabled = true;
+                    submitBtn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Salvando...';
+                });
+            }
         });
     </script>
 @endpush

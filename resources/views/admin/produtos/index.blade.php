@@ -4,6 +4,46 @@
 @section('page-title', 'Gerenciar Produtos')
 @section('page-subtitle', 'Lista de todos os produtos do sistema')
 
+@push('styles')
+    <style>
+        .btn-actions {
+            min-width: 50px;
+            font-size: 0.75rem;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            text-decoration: none;
+            border: 1px solid transparent;
+            transition: all 0.2s ease-in-out;
+            padding: 0.25rem 0.5rem;
+        }
+
+        .btn-actions:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .btn-actions i {
+            font-size: 0.8rem;
+            margin-right: 0.2rem;
+        }
+
+        .table td {
+            vertical-align: middle;
+        }
+
+        .gap-1 {
+            gap: 0.2rem !important;
+        }
+
+        .btn-sm {
+            padding: 0.25rem 0.5rem;
+            font-size: 0.75rem;
+            border-radius: 0.25rem;
+        }
+    </style>
+@endpush
+
 @section('content')
     <div class="row mb-4">
         <div class="col-md-8">
@@ -65,12 +105,12 @@
                     <table class="table table-hover mb-0">
                         <thead class="table-light">
                             <tr>
-                                <th>Produto</th>
-                                <th>Categoria</th>
-                                <th class="text-center">Preço</th>
-                                <th class="text-center">Estoque</th>
-                                <th class="text-center">Status</th>
-                                <th class="text-center">Ações</th>
+                                <th style="width: 30%">Produto</th>
+                                <th style="width: 15%">Categoria</th>
+                                <th class="text-center" style="width: 12%">Preço</th>
+                                <th class="text-center" style="width: 12%">Estoque</th>
+                                <th class="text-center" style="width: 12%">Status</th>
+                                <th class="text-center" style="width: 19%">Ações</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -78,7 +118,7 @@
                                 <tr>
                                     <td>
                                         <div class="d-flex align-items-center">
-                                            @if ($produto->imagens->count() > 0)
+                                            @if ($produto->imagens && $produto->imagens->count() > 0)
                                                 <img src="{{ Storage::url($produto->imagens->first()->caminho) }}"
                                                     alt="{{ $produto->nome }}" class="rounded me-3"
                                                     style="width: 50px; height: 50px; object-fit: cover;">
@@ -122,16 +162,18 @@
                                         @endif
                                     </td>
                                     <td class="text-center">
-                                        <div class="btn-group" role="group">
+                                        <div class="d-flex gap-1 justify-content-center">
                                             <a href="{{ route('produtos.show', $produto->slug) }}"
-                                                class="btn btn-sm btn-outline-primary" title="Ver no site" target="_blank">
+                                                class="btn btn-outline-primary btn-sm btn-actions" title="Ver no site"
+                                                target="_blank">
                                                 <i class="bi bi-eye"></i>
                                             </a>
                                             <a href="{{ route('admin.produtos.edit', $produto) }}"
-                                                class="btn btn-sm btn-outline-warning" title="Editar">
+                                                class="btn btn-outline-warning btn-sm btn-actions" title="Editar produto">
                                                 <i class="bi bi-pencil"></i>
                                             </a>
-                                            <button type="button" class="btn btn-sm btn-outline-danger" title="Excluir"
+                                            <button type="button" class="btn btn-outline-danger btn-sm btn-actions"
+                                                title="Excluir produto"
                                                 onclick="confirmarExclusao({{ $produto->id }}, '{{ $produto->nome }}')">
                                                 <i class="bi bi-trash"></i>
                                             </button>

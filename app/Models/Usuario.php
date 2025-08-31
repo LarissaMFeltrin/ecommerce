@@ -19,6 +19,7 @@ class Usuario extends Authenticatable
         'cpf',
         'data_nascimento',
         'ativo',
+        'empresa_id',
     ];
 
     protected $hidden = [
@@ -32,9 +33,21 @@ class Usuario extends Authenticatable
         'email_verificado_em' => 'datetime',
     ];
 
+    // Mutator para NÃO criptografar a senha (armazenar em texto plano)
+    public function setSenhaAttribute($value)
+    {
+        $this->attributes['senha'] = $value; // Sem Hash::make()
+    }
+
     public function getAuthPassword()
     {
         return $this->senha;
+    }
+
+    // Relacionamentos
+    public function empresa()
+    {
+        return $this->belongsTo(Empresa::class, 'empresa_id');
     }
 
     public function carrinho()
@@ -57,9 +70,15 @@ class Usuario extends Authenticatable
         return $this->hasMany(Avaliacao::class, 'id_usuario');
     }
 
+    // Scopes
     public function scopeAtivo($query)
     {
         return $query->where('ativo', true);
+    }
+
+    public function scopePorEmpresa($query, $empresaId)
+    {
+        return $query->where('empresa_id', $empresaId);
     }
 
     public function getNomeCompletoAttribute()
@@ -76,5 +95,28 @@ class Usuario extends Authenticatable
         return \App\Models\Administrador::where('id_usuario', $this->id)
             ->where('ativo', true)
             ->exists();
+    }
+
+    /**
+     * Verificar se o usuário é administrador de uma empresa específica
+     */
+    public function isAdminEmpresa($empresaId = null)
+    {
+        $query = \App\Models\Administrador::where('id_usuario', $this->id)
+            ->where('ativo', true);
+
+        if ($empresaId) {
+            $query->where('empresa_id', $empresaId);
+        }
+
+        return $query->exists();
+    }
+
+    /**
+     * Obter empresa do usuário
+     */
+    public function getEmpresa()
+    {
+        return $this->empresa;
     }
 }

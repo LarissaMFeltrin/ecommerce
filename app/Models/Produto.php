@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Str;
 
 class Produto extends Model
 {
@@ -13,12 +14,14 @@ class Produto extends Model
 
     protected $fillable = [
         'nome',
+        'slug',
         'descricao',
         'preco',
         'estoque',
         'id_categoria',
         'imagem',
         'ativo',
+        'empresa_id',
     ];
 
     protected $casts = [
@@ -27,6 +30,11 @@ class Produto extends Model
     ];
 
     // Relacionamentos
+    public function empresa()
+    {
+        return $this->belongsTo(Empresa::class, 'empresa_id');
+    }
+
     public function categoria()
     {
         return $this->belongsTo(Categoria::class, 'id_categoria');
@@ -58,6 +66,11 @@ class Produto extends Model
         return $query->where('id_categoria', $categoriaId);
     }
 
+    public function scopePorEmpresa($query, $empresaId)
+    {
+        return $query->where('empresa_id', $empresaId);
+    }
+
     public function scopeEmEstoque($query)
     {
         return $query->where('estoque', '>', 0);
@@ -72,5 +85,34 @@ class Produto extends Model
     public function getDisponivelAttribute()
     {
         return $this->ativo && $this->estoque > 0;
+    }
+
+    public function getImagensAttribute()
+    {
+        if ($this->imagem) {
+            $imagens = json_decode($this->imagem, true);
+            if (is_array($imagens)) {
+                return collect($imagens)->map(function ($imagem) {
+                    return (object) ['caminho' => $imagem];
+                });
+            }
+        }
+        return collect();
+    }
+
+    // Route Model Binding
+    public function getRouteKeyName()
+    {
+        return 'slug';
+    }
+
+    // Mutators
+    public function setSlugAttribute($value)
+    {
+        if (empty($value)) {
+            $this->attributes['slug'] = Str::slug($this->nome);
+        } else {
+            $this->attributes['slug'] = Str::slug($value);
+        }
     }
 }

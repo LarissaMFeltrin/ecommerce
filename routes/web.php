@@ -8,6 +8,7 @@ use App\Http\Controllers\PagamentoController;
 use App\Http\Controllers\AvaliacaoController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\EmpresaController;
 
 // Página inicial
 Route::get('/', function () {
@@ -101,6 +102,7 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::post('/categorias', [AdminController::class, 'salvarCategoria'])->name('categorias.store');
     Route::put('/categorias/{categoria}', [AdminController::class, 'atualizarCategoria'])->name('categorias.update');
     Route::delete('/categorias/{categoria}', [AdminController::class, 'excluirCategoria'])->name('categorias.destroy');
+    Route::post('/categorias/{categoria}/toggle-status', [AdminController::class, 'toggleStatusCategoria'])->name('categorias.toggle-status');
 
     // Avaliações (usando AdminController)
     Route::get('/avaliacoes', [AdminController::class, 'avaliacoes'])->name('avaliacoes.index');
@@ -114,6 +116,17 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::get('/administradores', [AdminController::class, 'administradores'])->name('administradores.index');
     Route::get('/administradores/criar', [AdminController::class, 'criarAdministrador'])->name('administradores.create');
     Route::post('/administradores', [AdminController::class, 'salvarAdministrador'])->name('administradores.store');
+
+    // Empresas
+    Route::get('/empresas', [EmpresaController::class, 'index'])->name('empresas.index');
+    Route::get('/empresas/criar', [EmpresaController::class, 'create'])->name('empresas.create');
+    Route::post('/empresas', [EmpresaController::class, 'store'])->name('empresas.store');
+    Route::get('/empresas/{empresa}', [EmpresaController::class, 'show'])->name('empresas.show');
+    Route::get('/empresas/{empresa}/editar', [EmpresaController::class, 'edit'])->name('empresas.edit');
+    Route::put('/empresas/{empresa}', [EmpresaController::class, 'update'])->name('empresas.update');
+    Route::delete('/empresas/{empresa}', [EmpresaController::class, 'destroy'])->name('empresas.destroy');
+    Route::post('/empresas/{empresa}/toggle', [EmpresaController::class, 'toggleStatus'])->name('empresas.toggle');
+    Route::get('/empresas/{empresa}/estatisticas', [EmpresaController::class, 'estatisticas'])->name('empresas.estatisticas');
 
     // Configurações
     Route::get('/configuracoes', [AdminController::class, 'configuracoes'])->name('configuracoes.index');

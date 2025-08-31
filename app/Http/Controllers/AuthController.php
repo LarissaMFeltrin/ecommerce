@@ -30,13 +30,24 @@ class AuthController extends Controller
         // Buscar usuário pelo email
         $usuario = Usuario::where('email', $request->email)->first();
 
-        // Verificar se o usuário existe e a senha está correta
-        if ($usuario && Hash::check($request->senha, $usuario->senha)) {
+        // Verificar se o usuário existe e a senha está correta (comparação direta)
+        if ($usuario && $usuario->senha === $request->senha) {
             // Fazer login manualmente
             Auth::login($usuario);
             $request->session()->regenerate();
 
-            return redirect()->intended('/')->with('success', 'Login realizado com sucesso!');
+            // Limpar qualquer URL intended que possa estar causando problemas
+            $request->session()->forget('url.intended');
+
+            // Verificar se o usuário é administrador
+            if ($usuario->isAdmin()) {
+                // Redirecionar administradores para a área administrativa
+                return redirect()->route('admin.administradores.index')
+                    ->with('success', 'Login realizado com sucesso! Bem-vindo ao painel administrativo.');
+            } else {
+                // Redirecionar usuários comuns para a home
+                return redirect('/')->with('success', 'Login realizado com sucesso!');
+            }
         }
 
         return back()->withErrors([
@@ -137,12 +148,12 @@ class AuthController extends Controller
 
         $usuario = Auth::user();
 
-        if (!Hash::check($request->senha_atual, $usuario->senha)) {
+        if ($usuario->senha !== $request->senha_atual) {
             return back()->withErrors(['senha_atual' => 'Senha atual incorreta']);
         }
 
         $usuario->update([
-            'senha' => $request->nova_senha // Removido Hash::make() - o mutator já faz isso
+            'senha' => $request->nova_senha // Sem Hash::make() - o mutator já faz isso
         ]);
 
         return back()->with('success', 'Senha alterada com sucesso!');

@@ -117,8 +117,10 @@
                 });
             }
 
-            // Atualizar contador do carrinho
+            // Atualizar contador do carrinho apenas se o usuário estiver logado
+            @auth
             atualizarContadorCarrinho();
+        @endauth
         });
 
         // Função para mostrar o modal do carrinho
@@ -217,7 +219,7 @@
                     if (error.message.includes('401') || error.message.includes('Unauthorized')) {
                         alert(
                             'Você precisa estar logado para adicionar produtos ao carrinho. Redirecionando para a página de login...'
-                            );
+                        );
                         window.location.href = '{{ route('login') }}';
                         return;
                     }

@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use App\Models\Produto;
 use App\Models\Usuario;
@@ -23,37 +24,70 @@ class AdminController extends Controller
      */
     public function dashboard()
     {
-        // Estatísticas gerais
+        $empresaId = request()->get('empresa_id');
+        $adminTipo = request()->attributes->get('admin_tipo');
+
+        // Estatísticas gerais - filtradas por empresa se não for super admin
+        $queryProdutos = Produto::query();
+        $queryUsuarios = Usuario::query();
+        $queryPedidos = Pedido::query();
+        $queryAvaliacoes = Avaliacao::query();
+
+        if ($empresaId && $adminTipo === 'empresa_admin') {
+            $queryProdutos->porEmpresa($empresaId);
+            $queryUsuarios->porEmpresa($empresaId);
+            $queryPedidos->porEmpresa($empresaId);
+            $queryAvaliacoes->porEmpresa($empresaId);
+        }
+
         $stats = [
-            'total_produtos' => Produto::count(),
-            'total_usuarios' => Usuario::count(),
-            'total_pedidos' => Pedido::count(),
-            'pedidos_pendentes' => Pedido::where('status', 'pendente')->count(),
-            'pedidos_aprovados' => Pedido::where('status', 'aprovado')->count(),
-            'pedidos_cancelados' => Pedido::where('status', 'cancelado')->count(),
-            'total_vendas' => Pedido::where('status', 'aprovado')->sum('valor_total'),
-            'avaliacoes_pendentes' => Avaliacao::where('status', 'pendente')->count(),
+            'total_produtos' => $queryProdutos->count(),
+            'total_usuarios' => $queryUsuarios->count(),
+            'total_pedidos' => $queryPedidos->count(),
+            'pedidos_pendentes' => $queryPedidos->clone()->porStatus('pendente')->count(),
+            'pedidos_aprovados' => $queryPedidos->clone()->porStatus('aprovado')->count(),
+            'pedidos_cancelados' => $queryPedidos->clone()->porStatus('cancelado')->count(),
+            'total_vendas' => $queryPedidos->clone()->sum('valor_total'),
+            'avaliacoes_pendentes' => $queryAvaliacoes->clone()->pendente()->count(),
         ];
 
-        // Produtos mais vendidos
-        $produtosMaisVendidos = DB::table('itens_pedido')
+        // Produtos mais vendidos - filtrados por empresa
+        $queryProdutosVendidos = DB::table('itens_pedido')
             ->join('produtos', 'itens_pedido.id_produto', '=', 'produtos.id')
+            ->join('pedidos', 'itens_pedido.id_pedido', '=', 'pedidos.id');
+
+        if ($empresaId && $adminTipo === 'empresa_admin') {
+            $queryProdutosVendidos->where('produtos.empresa_id', $empresaId);
+        }
+
+        $produtosMaisVendidos = $queryProdutosVendidos
             ->select('produtos.nome', 'produtos.id', DB::raw('SUM(itens_pedido.quantidade) as total_vendido'))
             ->groupBy('produtos.id', 'produtos.nome')
             ->orderBy('total_vendido', 'desc')
             ->limit(5)
             ->get();
 
-        // Pedidos recentes
-        $pedidosRecentes = Pedido::with(['usuario', 'itens.produto'])
-            ->orderBy('created_at', 'desc')
+        // Pedidos recentes - filtrados por empresa
+        $queryPedidosRecentes = Pedido::with('usuario');
+
+        if ($empresaId && $adminTipo === 'empresa_admin') {
+            $queryPedidosRecentes->porEmpresa($empresaId);
+        }
+
+        $pedidosRecentes = $queryPedidosRecentes
+            ->orderBy('criado_em', 'desc')
             ->limit(10)
             ->get();
 
-        // Vendas por mês (últimos 6 meses)
-        $vendasPorMes = Pedido::selectRaw('MONTH(created_at) as mes, YEAR(created_at) as ano, SUM(valor_total) as total')
-            ->where('status', 'aprovado')
-            ->where('created_at', '>=', now()->subMonths(6))
+        // Vendas por mês - filtradas por empresa
+        $queryVendasPorMes = Pedido::selectRaw('MONTH(criado_em) as mes, YEAR(criado_em) as ano, SUM(valor_total) as total')
+            ->where('criado_em', '>=', now()->subMonths(6));
+
+        if ($empresaId && $adminTipo === 'empresa_admin') {
+            $queryVendasPorMes->porEmpresa($empresaId);
+        }
+
+        $vendasPorMes = $queryVendasPorMes
             ->groupBy('mes', 'ano')
             ->orderBy('ano', 'desc')
             ->orderBy('mes', 'desc')
@@ -67,11 +101,24 @@ class AdminController extends Controller
      */
     public function produtos()
     {
-        $produtos = Produto::with('categoria')
-            ->orderBy('created_at', 'desc')
-            ->paginate(20);
+        $empresaId = request()->get('empresa_id');
+        $adminTipo = request()->attributes->get('admin_tipo');
 
-        $categorias = Categoria::ativa()->get();
+        $queryProdutos = Produto::with('categoria');
+
+        if ($empresaId && $adminTipo === 'empresa_admin') {
+            $queryProdutos->porEmpresa($empresaId);
+        }
+
+        $produtos = $queryProdutos->orderBy('created_at', 'desc')->paginate(20);
+
+        $queryCategorias = Categoria::ativa();
+
+        if ($empresaId && $adminTipo === 'empresa_admin') {
+            $queryCategorias->porEmpresa($empresaId);
+        }
+
+        $categorias = $queryCategorias->get();
 
         return view('admin.produtos.index', compact('produtos', 'categorias'));
     }
@@ -81,7 +128,17 @@ class AdminController extends Controller
      */
     public function criarProduto()
     {
-        $categorias = Categoria::ativa()->get();
+        $empresaId = request()->get('empresa_id');
+        $adminTipo = request()->attributes->get('admin_tipo');
+
+        $queryCategorias = Categoria::ativa();
+
+        if ($empresaId && $adminTipo === 'empresa_admin') {
+            $queryCategorias->porEmpresa($empresaId);
+        }
+
+        $categorias = $queryCategorias->get();
+
         return view('admin.produtos.create', compact('categorias'));
     }
 
@@ -90,6 +147,9 @@ class AdminController extends Controller
      */
     public function salvarProduto(Request $request)
     {
+        $empresaId = request()->get('empresa_id');
+        $adminTipo = request()->attributes->get('admin_tipo');
+
         $request->validate([
             'nome' => 'required|string|max:255',
             'descricao' => 'required|string',
@@ -100,26 +160,33 @@ class AdminController extends Controller
             'ativo' => 'boolean',
         ]);
 
-        $produto = Produto::create([
-            'nome' => $request->nome,
-            'descricao' => $request->descricao,
-            'preco' => $request->preco,
-            'estoque' => $request->estoque,
-            'categoria_id' => $request->categoria_id,
-            'ativo' => $request->has('ativo'),
-            'slug' => Str::slug($request->nome),
-        ]);
+        // Verificar se a categoria pertence à empresa (se não for super admin)
+        if ($empresaId && $adminTipo === 'empresa_admin') {
+            $categoria = Categoria::find($request->categoria_id);
+            if (!$categoria || $categoria->empresa_id != $empresaId) {
+                return back()->with('error', 'Categoria inválida para esta empresa.');
+            }
+        }
+
+        $data = $request->all();
+        $data['ativo'] = $request->has('ativo');
+
+        // Adicionar empresa_id se for administrador de empresa
+        if ($empresaId && $adminTipo === 'empresa_admin') {
+            $data['empresa_id'] = $empresaId;
+        }
 
         // Upload de imagens
         if ($request->hasFile('imagens')) {
+            $imagens = [];
             foreach ($request->file('imagens') as $imagem) {
                 $path = $imagem->store('produtos', 'public');
-                $produto->imagens()->create([
-                    'caminho' => $path,
-                    'principal' => false,
-                ]);
+                $imagens[] = $path;
             }
+            $data['imagem'] = json_encode($imagens);
         }
+
+        $produto = Produto::create($data);
 
         return redirect()->route('admin.produtos.index')
             ->with('success', 'Produto criado com sucesso!');
@@ -130,7 +197,24 @@ class AdminController extends Controller
      */
     public function editarProduto(Produto $produto)
     {
-        $categorias = Categoria::ativa()->get();
+        $empresaId = request()->get('empresa_id');
+        $adminTipo = request()->attributes->get('admin_tipo');
+
+        // Verificar se o produto pertence à empresa (se não for super admin)
+        if ($empresaId && $adminTipo === 'empresa_admin') {
+            if ($produto->empresa_id != $empresaId) {
+                abort(403, 'Acesso negado. Produto não pertence à sua empresa.');
+            }
+        }
+
+        $queryCategorias = Categoria::ativa();
+
+        if ($empresaId && $adminTipo === 'empresa_admin') {
+            $queryCategorias->porEmpresa($empresaId);
+        }
+
+        $categorias = $queryCategorias->get();
+
         return view('admin.produtos.edit', compact('produto', 'categorias'));
     }
 
@@ -139,6 +223,16 @@ class AdminController extends Controller
      */
     public function atualizarProduto(Request $request, Produto $produto)
     {
+        $empresaId = request()->get('empresa_id');
+        $adminTipo = request()->attributes->get('admin_tipo');
+
+        // Verificar se o produto pertence à empresa (se não for super admin)
+        if ($empresaId && $adminTipo === 'empresa_admin') {
+            if ($produto->empresa_id != $empresaId) {
+                abort(403, 'Acesso negado. Produto não pertence à sua empresa.');
+            }
+        }
+
         $request->validate([
             'nome' => 'required|string|max:255',
             'descricao' => 'required|string',
@@ -149,26 +243,28 @@ class AdminController extends Controller
             'ativo' => 'boolean',
         ]);
 
-        $produto->update([
-            'nome' => $request->nome,
-            'descricao' => $request->descricao,
-            'preco' => $request->preco,
-            'estoque' => $request->estoque,
-            'categoria_id' => $request->categoria_id,
-            'ativo' => $request->has('ativo'),
-            'slug' => Str::slug($request->nome),
-        ]);
+        // Verificar se a categoria pertence à empresa (se não for super admin)
+        if ($empresaId && $adminTipo === 'empresa_admin') {
+            $categoria = Categoria::find($request->categoria_id);
+            if (!$categoria || $categoria->empresa_id != $empresaId) {
+                return back()->with('error', 'Categoria inválida para esta empresa.');
+            }
+        }
+
+        $data = $request->all();
+        $data['ativo'] = $request->has('ativo');
 
         // Upload de novas imagens
         if ($request->hasFile('imagens')) {
+            $imagens = [];
             foreach ($request->file('imagens') as $imagem) {
                 $path = $imagem->store('produtos', 'public');
-                $produto->imagens()->create([
-                    'caminho' => $path,
-                    'principal' => false,
-                ]);
+                $imagens[] = $path;
             }
+            $data['imagem'] = json_encode($imagens);
         }
+
+        $produto->update($data);
 
         return redirect()->route('admin.produtos.index')
             ->with('success', 'Produto atualizado com sucesso!');
@@ -179,17 +275,19 @@ class AdminController extends Controller
      */
     public function excluirProduto(Produto $produto)
     {
-        // Verificar se há pedidos com este produto
-        $temPedidos = $produto->itensPedido()->exists();
+        $empresaId = request()->get('empresa_id');
+        $adminTipo = request()->attributes->get('admin_tipo');
 
-        if ($temPedidos) {
-            return back()->with('error', 'Não é possível excluir um produto que possui pedidos associados.');
+        // Verificar se o produto pertence à empresa (se não for super admin)
+        if ($empresaId && $adminTipo === 'empresa_admin') {
+            if ($produto->empresa_id != $empresaId) {
+                abort(403, 'Acesso negado. Produto não pertence à sua empresa.');
+            }
         }
 
-        // Excluir imagens
-        foreach ($produto->imagens as $imagem) {
-            Storage::disk('public')->delete($imagem->caminho);
-            $imagem->delete();
+        // Verificar se há pedidos com este produto
+        if ($produto->itensPedido()->exists()) {
+            return back()->with('error', 'Não é possível excluir um produto que possui pedidos.');
         }
 
         $produto->delete();
@@ -203,9 +301,16 @@ class AdminController extends Controller
      */
     public function usuarios()
     {
-        $usuarios = Usuario::withCount(['pedidos', 'avaliacoes'])
-            ->orderBy('created_at', 'desc')
-            ->paginate(20);
+        $empresaId = request()->get('empresa_id');
+        $adminTipo = request()->attributes->get('admin_tipo');
+
+        $queryUsuarios = Usuario::withCount(['pedidos', 'avaliacoes']);
+
+        if ($empresaId && $adminTipo === 'empresa_admin') {
+            $queryUsuarios->porEmpresa($empresaId);
+        }
+
+        $usuarios = $queryUsuarios->orderBy('nome')->paginate(20);
 
         return view('admin.usuarios.index', compact('usuarios'));
     }
@@ -215,7 +320,17 @@ class AdminController extends Controller
      */
     public function detalhesUsuario(Usuario $usuario)
     {
-        $pedidos = $usuario->pedidos()->with('itens.produto')->orderBy('created_at', 'desc')->get();
+        $empresaId = request()->get('empresa_id');
+        $adminTipo = request()->attributes->get('admin_tipo');
+
+        // Verificar se o usuário pertence à empresa (se não for super admin)
+        if ($empresaId && $adminTipo === 'empresa_admin') {
+            if ($usuario->empresa_id != $empresaId) {
+                abort(403, 'Acesso negado. Usuário não pertence à sua empresa.');
+            }
+        }
+
+        $pedidos = $usuario->pedidos()->with('itens.produto')->orderBy('criado_em', 'desc')->get();
         $avaliacoes = $usuario->avaliacoes()->with('produto')->orderBy('created_at', 'desc')->get();
         $enderecos = $usuario->enderecos;
 
@@ -227,7 +342,18 @@ class AdminController extends Controller
      */
     public function toggleUsuario(Usuario $usuario)
     {
-        $usuario->update(['ativo' => !$usuario->ativo]);
+        $empresaId = request()->get('empresa_id');
+        $adminTipo = request()->attributes->get('admin_tipo');
+
+        // Verificar se o usuário pertence à empresa (se não for super admin)
+        if ($empresaId && $adminTipo === 'empresa_admin') {
+            if ($usuario->empresa_id != $empresaId) {
+                abort(403, 'Acesso negado. Usuário não pertence à sua empresa.');
+            }
+        }
+
+        $usuario->ativo = !$usuario->ativo;
+        $usuario->save();
 
         $status = $usuario->ativo ? 'ativado' : 'desativado';
         return back()->with('success', "Usuário {$status} com sucesso!");
@@ -238,9 +364,16 @@ class AdminController extends Controller
      */
     public function pedidos()
     {
-        $pedidos = Pedido::with(['usuario', 'itens.produto'])
-            ->orderBy('created_at', 'desc')
-            ->paginate(20);
+        $empresaId = request()->get('empresa_id');
+        $adminTipo = request()->attributes->get('admin_tipo');
+
+        $queryPedidos = Pedido::with(['usuario', 'endereco', 'cupom']);
+
+        if ($empresaId && $adminTipo === 'empresa_admin') {
+            $queryPedidos->porEmpresa($empresaId);
+        }
+
+        $pedidos = $queryPedidos->orderBy('criado_em', 'desc')->paginate(20);
 
         return view('admin.pedidos.index', compact('pedidos'));
     }
@@ -250,7 +383,18 @@ class AdminController extends Controller
      */
     public function detalhesPedido(Pedido $pedido)
     {
-        $pedido->load(['usuario', 'itens.produto', 'endereco', 'pagamento']);
+        $empresaId = request()->get('empresa_id');
+        $adminTipo = request()->attributes->get('admin_tipo');
+
+        // Verificar se o pedido pertence à empresa (se não for super admin)
+        if ($empresaId && $adminTipo === 'empresa_admin') {
+            if ($pedido->empresa_id != $empresaId) {
+                abort(403, 'Acesso negado. Pedido não pertence à sua empresa.');
+            }
+        }
+
+        $pedido->load(['usuario', 'endereco', 'cupom', 'itens.produto', 'pagamento']);
+
         return view('admin.pedidos.show', compact('pedido'));
     }
 
@@ -259,18 +403,25 @@ class AdminController extends Controller
      */
     public function atualizarStatusPedido(Request $request, Pedido $pedido)
     {
+        $empresaId = request()->get('empresa_id');
+        $adminTipo = request()->attributes->get('admin_tipo');
+
+        // Verificar se o pedido pertence à empresa (se não for super admin)
+        if ($empresaId && $adminTipo === 'empresa_admin') {
+            if ($pedido->empresa_id != $empresaId) {
+                abort(403, 'Acesso negado. Pedido não pertence à sua empresa.');
+            }
+        }
+
         $request->validate([
-            'status' => 'required|in:pendente,aprovado,em_preparo,enviado,entregue,cancelado',
-            'observacao' => 'nullable|string',
+            'status' => 'required|in:pendente,aprovado,enviado,entregue,cancelado',
+            'observacoes' => 'nullable|string|max:500',
         ]);
 
         $pedido->update([
             'status' => $request->status,
-            'observacao' => $request->observacao,
+            'observacoes' => $request->observacoes,
         ]);
-
-        // Enviar notificação para o usuário
-        // TODO: Implementar notificação
 
         return back()->with('success', 'Status do pedido atualizado com sucesso!');
     }
@@ -280,9 +431,16 @@ class AdminController extends Controller
      */
     public function categorias()
     {
-        $categorias = Categoria::withCount('produtos')
-            ->orderBy('nome')
-            ->paginate(20);
+        $empresaId = request()->get('empresa_id');
+        $adminTipo = request()->attributes->get('admin_tipo');
+
+        $queryCategorias = Categoria::withCount('produtos');
+
+        if ($empresaId && $adminTipo === 'empresa_admin') {
+            $queryCategorias->porEmpresa($empresaId);
+        }
+
+        $categorias = $queryCategorias->orderBy('nome')->paginate(20);
 
         return view('admin.categorias.index', compact('categorias'));
     }
@@ -292,18 +450,26 @@ class AdminController extends Controller
      */
     public function salvarCategoria(Request $request)
     {
+        $empresaId = request()->get('empresa_id');
+        $adminTipo = request()->attributes->get('admin_tipo');
+
         $request->validate([
-            'nome' => 'required|string|max:255|unique:categorias,nome',
+            'nome' => 'required|string|max:255',
             'descricao' => 'nullable|string',
-            'ativo' => 'boolean',
         ]);
 
-        Categoria::create([
-            'nome' => $request->nome,
-            'descricao' => $request->descricao,
-            'slug' => Str::slug($request->nome),
-            'ativo' => $request->has('ativo'),
-        ]);
+        $data = $request->all();
+        $data['ativa'] = true;
+
+        // Gerar slug automaticamente baseado no nome
+        $data['slug'] = Str::slug($request->nome);
+
+        // Adicionar empresa_id se for administrador de empresa
+        if ($empresaId && $adminTipo === 'empresa_admin') {
+            $data['empresa_id'] = $empresaId;
+        }
+
+        Categoria::create($data);
 
         return back()->with('success', 'Categoria criada com sucesso!');
     }
@@ -313,18 +479,29 @@ class AdminController extends Controller
      */
     public function atualizarCategoria(Request $request, Categoria $categoria)
     {
+        $empresaId = request()->get('empresa_id');
+        $adminTipo = request()->attributes->get('admin_tipo');
+
+        // Verificar se a categoria pertence à empresa (se não for super admin)
+        if ($empresaId && $adminTipo === 'empresa_admin') {
+            if ($categoria->empresa_id != $empresaId) {
+                abort(403, 'Acesso negado. Categoria não pertence à sua empresa.');
+            }
+        }
+
         $request->validate([
-            'nome' => 'required|string|max:255|unique:categorias,nome,' . $categoria->id,
+            'nome' => 'required|string|max:255',
             'descricao' => 'nullable|string',
-            'ativo' => 'boolean',
         ]);
 
-        $categoria->update([
-            'nome' => $request->nome,
-            'descricao' => $request->descricao,
-            'slug' => Str::slug($request->nome),
-            'ativo' => $request->has('ativo'),
-        ]);
+        $data = $request->all();
+
+        // Atualizar slug se o nome foi alterado
+        if ($request->nome !== $categoria->nome) {
+            $data['slug'] = Str::slug($request->nome);
+        }
+
+        $categoria->update($data);
 
         return back()->with('success', 'Categoria atualizada com sucesso!');
     }
@@ -334,6 +511,17 @@ class AdminController extends Controller
      */
     public function excluirCategoria(Categoria $categoria)
     {
+        $empresaId = request()->get('empresa_id');
+        $adminTipo = request()->attributes->get('admin_tipo');
+
+        // Verificar se a categoria pertence à empresa (se não for super admin)
+        if ($empresaId && $adminTipo === 'empresa_admin') {
+            if ($categoria->empresa_id != $empresaId) {
+                abort(403, 'Acesso negado. Categoria não pertence à sua empresa.');
+            }
+        }
+
+        // Verificar se há produtos nesta categoria
         if ($categoria->produtos()->exists()) {
             return back()->with('error', 'Não é possível excluir uma categoria que possui produtos.');
         }
@@ -344,14 +532,43 @@ class AdminController extends Controller
     }
 
     /**
-     * Lista de avaliações pendentes
+     * Ativar/desativar categoria
+     */
+    public function toggleStatusCategoria(Categoria $categoria)
+    {
+        $empresaId = request()->get('empresa_id');
+        $adminTipo = request()->attributes->get('admin_tipo');
+
+        // Verificar se a categoria pertence à empresa (se não for super admin)
+        if ($empresaId && $adminTipo === 'empresa_admin') {
+            if ($categoria->empresa_id != $empresaId) {
+                abort(403, 'Acesso negado. Categoria não pertence à sua empresa.');
+            }
+        }
+
+        $categoria->ativa = !$categoria->ativa;
+        $categoria->save();
+
+        $status = $categoria->ativa ? 'ativada' : 'desativada';
+
+        return back()->with('success', "Categoria {$status} com sucesso!");
+    }
+
+    /**
+     * Lista de avaliações
      */
     public function avaliacoes()
     {
-        $avaliacoes = Avaliacao::with(['usuario', 'produto'])
-            ->where('status', 'pendente')
-            ->orderBy('created_at', 'desc')
-            ->paginate(20);
+        $empresaId = request()->get('empresa_id');
+        $adminTipo = request()->attributes->get('admin_tipo');
+
+        $queryAvaliacoes = Avaliacao::with(['usuario', 'produto']);
+
+        if ($empresaId && $adminTipo === 'empresa_admin') {
+            $queryAvaliacoes->porEmpresa($empresaId);
+        }
+
+        $avaliacoes = $queryAvaliacoes->orderBy('created_at', 'desc')->paginate(20);
 
         return view('admin.avaliacoes.index', compact('avaliacoes'));
     }
@@ -361,7 +578,18 @@ class AdminController extends Controller
      */
     public function aprovarAvaliacao(Avaliacao $avaliacao)
     {
-        $avaliacao->aprovar();
+        $empresaId = request()->get('empresa_id');
+        $adminTipo = request()->attributes->get('admin_tipo');
+
+        // Verificar se a avaliação pertence à empresa (se não for super admin)
+        if ($empresaId && $adminTipo === 'empresa_admin') {
+            if ($avaliacao->empresa_id != $empresaId) {
+                abort(403, 'Acesso negado. Avaliação não pertence à sua empresa.');
+            }
+        }
+
+        $avaliacao->update(['aprovada' => true]);
+
         return back()->with('success', 'Avaliação aprovada com sucesso!');
     }
 
@@ -370,7 +598,18 @@ class AdminController extends Controller
      */
     public function rejeitarAvaliacao(Avaliacao $avaliacao)
     {
-        $avaliacao->rejeitar();
+        $empresaId = request()->get('empresa_id');
+        $adminTipo = request()->attributes->get('admin_tipo');
+
+        // Verificar se a avaliação pertence à empresa (se não for super admin)
+        if ($empresaId && $adminTipo === 'empresa_admin') {
+            if ($avaliacao->empresa_id != $empresaId) {
+                abort(403, 'Acesso negado. Avaliação não pertence à sua empresa.');
+            }
+        }
+
+        $avaliacao->update(['aprovada' => false]);
+
         return back()->with('success', 'Avaliação rejeitada com sucesso!');
     }
 
@@ -379,49 +618,86 @@ class AdminController extends Controller
      */
     public function relatorios()
     {
-        // Vendas por período
-        $periodo = request('periodo', 'mes');
+        $empresaId = request()->get('empresa_id');
+        $adminTipo = request()->attributes->get('admin_tipo');
 
-        switch ($periodo) {
-            case 'semana':
-                $inicio = now()->startOfWeek();
-                $fim = now()->endOfWeek();
-                break;
-            case 'mes':
-                $inicio = now()->startOfMonth();
-                $fim = now()->endOfMonth();
-                break;
-            case 'ano':
-                $inicio = now()->startOfYear();
-                $fim = now()->endOfYear();
-                break;
-            default:
-                $inicio = now()->startOfMonth();
-                $fim = now()->endOfMonth();
-        }
-
-        $vendas = Pedido::where('status', 'aprovado')
-            ->whereBetween('created_at', [$inicio, $fim])
-            ->sum('valor_total');
-
-        $pedidos = Pedido::where('status', 'aprovado')
-            ->whereBetween('created_at', [$inicio, $fim])
-            ->count();
-
-        $produtosVendidos = DB::table('itens_pedido')
-            ->join('pedidos', 'itens_pedido.id_pedido', '=', 'pedidos.id')
-            ->where('pedidos.status', 'aprovado')
-            ->whereBetween('pedidos.created_at', [$inicio, $fim])
-            ->sum('itens_pedido.quantidade');
-
-        return view('admin.relatorios.index', compact('vendas', 'pedidos', 'produtosVendidos', 'periodo'));
+        // Implementar relatórios filtrados por empresa
+        return view('admin.relatorios.index');
     }
 
     /**
-     * Configurações do sistema
+     * Lista de administradores
+     */
+    public function administradores()
+    {
+        $empresaId = request()->get('empresa_id');
+        $adminTipo = request()->attributes->get('admin_tipo');
+
+        $queryAdministradores = Administrador::with('usuario');
+
+        if ($empresaId && $adminTipo === 'empresa_admin') {
+            $queryAdministradores->porEmpresa($empresaId);
+        }
+
+        $administradores = $queryAdministradores->orderBy('nome')->paginate(20);
+
+        return view('admin.administradores.index', compact('administradores'));
+    }
+
+    /**
+     * Formulário para criar administrador
+     */
+    public function criarAdministrador()
+    {
+        return view('admin.administradores.create');
+    }
+
+    /**
+     * Salvar administrador
+     */
+    public function salvarAdministrador(Request $request)
+    {
+        $request->validate([
+            'nome' => 'required|string|max:255',
+            'email' => 'required|email|unique:usuarios,email',
+            'senha' => 'required|string|min:6',
+            'tipo' => 'required|in:admin,super_admin',
+            'empresa_id' => 'nullable|exists:empresas,id',
+        ]);
+
+        // Criar usuário
+        $usuario = Usuario::create([
+            'nome' => $request->nome,
+            'email' => $request->email,
+            'senha' => Hash::make($request->senha),
+            'ativo' => true,
+            'empresa_id' => $request->empresa_id,
+        ]);
+
+        // Criar administrador
+        Administrador::create([
+            'id_usuario' => $usuario->id,
+            'nome' => $request->nome,
+            'email' => $request->email,
+            'senha' => Hash::make($request->senha),
+            'tipo' => $request->tipo,
+            'empresa_id' => $request->empresa_id,
+            'ativo' => true,
+        ]);
+
+        return redirect()->route('admin.administradores.index')
+            ->with('success', 'Administrador criado com sucesso!');
+    }
+
+    /**
+     * Configurações
      */
     public function configuracoes()
     {
+        $empresaId = request()->get('empresa_id');
+        $adminTipo = request()->attributes->get('admin_tipo');
+
+        // Implementar configurações filtradas por empresa
         return view('admin.configuracoes.index');
     }
 
@@ -430,71 +706,10 @@ class AdminController extends Controller
      */
     public function salvarConfiguracoes(Request $request)
     {
-        $request->validate([
-            'nome_loja' => 'required|string|max:255',
-            'email_contato' => 'required|email',
-            'telefone_contato' => 'nullable|string',
-            'endereco_loja' => 'nullable|string',
-            'frete_gratis_acima' => 'nullable|numeric|min:0',
-            'taxa_frete' => 'nullable|numeric|min:0',
-        ]);
+        $empresaId = request()->get('empresa_id');
+        $adminTipo = request()->attributes->get('admin_tipo');
 
-        // TODO: Implementar sistema de configurações
-        // Por enquanto, vamos usar session flash para simular
-
+        // Implementar salvamento de configurações por empresa
         return back()->with('success', 'Configurações salvas com sucesso!');
-    }
-
-    // ===== ADMINISTRADORES =====
-
-    public function administradores()
-    {
-        $administradores = Administrador::with('usuario')
-            ->orderBy('nome')
-            ->paginate(15);
-
-        return view('admin.administradores.index', compact('administradores'));
-    }
-
-    public function criarAdministrador()
-    {
-        return view('admin.administradores.create');
-    }
-
-    public function salvarAdministrador(Request $request)
-    {
-        $request->validate([
-            'nome' => 'required|string|min:3|max:255',
-            'email' => 'required|email|unique:usuarios,email',
-            'senha' => 'required|string|min:6|confirmed',
-            'tipo' => 'required|in:admin,super_admin',
-        ]);
-
-        try {
-            // Criar usuário
-            $usuario = Usuario::create([
-                'nome' => $request->nome,
-                'email' => $request->email,
-                'senha' => Hash::make($request->senha),
-                'ativo' => true,
-                'email_verificado_em' => now(),
-            ]);
-
-            // Criar administrador
-            Administrador::create([
-                'id_usuario' => $usuario->id,
-                'nome' => $request->nome,
-                'email' => $request->email,
-                'senha' => Hash::make($request->senha),
-                'tipo' => $request->tipo,
-                'ativo' => true,
-            ]);
-
-            session()->flash('success', 'Administrador criado com sucesso!');
-            return redirect()->route('admin.administradores.index');
-        } catch (\Exception $e) {
-            session()->flash('error', 'Erro ao criar administrador: ' . $e->getMessage());
-            return back()->withInput();
-        }
     }
 }

@@ -16,13 +16,22 @@ class ItemPedido extends Model
         'id_produto',
         'quantidade',
         'preco_unitario',
+        'subtotal',
+        'empresa_id',
     ];
 
     protected $casts = [
+        'quantidade' => 'integer',
         'preco_unitario' => 'decimal:2',
+        'subtotal' => 'decimal:2',
     ];
 
     // Relacionamentos
+    public function empresa()
+    {
+        return $this->belongsTo(Empresa::class, 'empresa_id');
+    }
+
     public function pedido()
     {
         return $this->belongsTo(Pedido::class, 'id_pedido');
@@ -33,10 +42,26 @@ class ItemPedido extends Model
         return $this->belongsTo(Produto::class, 'id_produto');
     }
 
-    // Acessors
-    public function getSubtotalAttribute()
+    // Scopes
+    public function scopePorEmpresa($query, $empresaId)
     {
-        return $this->preco_unitario * $this->quantidade;
+        return $query->where('empresa_id', $empresaId);
+    }
+
+    public function scopePorPedido($query, $pedidoId)
+    {
+        return $query->where('id_pedido', $pedidoId);
+    }
+
+    public function scopePorProduto($query, $produtoId)
+    {
+        return $query->where('id_produto', $produtoId);
+    }
+
+    // Acessors
+    public function getPrecoUnitarioFormatadoAttribute()
+    {
+        return 'R$ ' . number_format($this->preco_unitario, 2, ',', '.');
     }
 
     public function getSubtotalFormatadoAttribute()
@@ -44,8 +69,9 @@ class ItemPedido extends Model
         return 'R$ ' . number_format($this->subtotal, 2, ',', '.');
     }
 
-    public function getPrecoUnitarioFormatadoAttribute()
+    // Mutators
+    public function setSubtotalAttribute($value)
     {
-        return 'R$ ' . number_format($this->preco_unitario, 2, ',', '.');
+        $this->attributes['subtotal'] = $this->preco_unitario * $this->quantidade;
     }
 }

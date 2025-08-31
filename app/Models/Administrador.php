@@ -19,6 +19,8 @@ class Administrador extends Model
         'email',
         'senha',
         'tipo',
+        'empresa_id',
+        'ativo',
     ];
 
     protected $hidden = [
@@ -29,6 +31,11 @@ class Administrador extends Model
     public function usuario()
     {
         return $this->belongsTo(Usuario::class, 'id_usuario');
+    }
+
+    public function empresa()
+    {
+        return $this->belongsTo(Empresa::class, 'empresa_id');
     }
 
     public function pedidos()
@@ -42,9 +49,35 @@ class Administrador extends Model
         return $query->where('ativo', true);
     }
 
-    // Mutators
+    public function scopePorEmpresa($query, $empresaId)
+    {
+        return $query->where('empresa_id', $empresaId);
+    }
+
+    public function scopeSuperAdmin($query)
+    {
+        return $query->where('tipo', 'super_admin');
+    }
+
+    // Mutator para NÃO criptografar a senha (armazenar em texto plano)
     public function setSenhaAttribute($value)
     {
-        $this->attributes['senha'] = bcrypt($value);
+        $this->attributes['senha'] = $value; // Sem Hash::make()
+    }
+
+    /**
+     * Verificar se é super administrador
+     */
+    public function isSuperAdmin()
+    {
+        return $this->tipo === 'super_admin';
+    }
+
+    /**
+     * Verificar se é administrador de empresa
+     */
+    public function isEmpresaAdmin()
+    {
+        return $this->empresa_id !== null;
     }
 }

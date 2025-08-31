@@ -13,54 +13,88 @@ class Pagamento extends Model
 
     protected $fillable = [
         'id_pedido',
-        'tipo',
-        'status',
         'valor',
-        'referencia_externa',
+        'forma_pagamento',
+        'status',
+        'codigo_transacao',
+        'data_pagamento',
+        'empresa_id',
     ];
 
     protected $casts = [
         'valor' => 'decimal:2',
-        'criado_em' => 'datetime',
+        'data_pagamento' => 'datetime',
     ];
 
-    // Configurar timestamps personalizados
-    const CREATED_AT = 'criado_em';
-    const UPDATED_AT = null; // Não temos updated_at na tabela
-
     // Relacionamentos
+    public function empresa()
+    {
+        return $this->belongsTo(Empresa::class, 'empresa_id');
+    }
+
     public function pedido()
     {
         return $this->belongsTo(Pedido::class, 'id_pedido');
     }
 
     // Scopes
+    public function scopePorEmpresa($query, $empresaId)
+    {
+        return $query->where('empresa_id', $empresaId);
+    }
+
     public function scopePorStatus($query, $status)
     {
         return $query->where('status', $status);
     }
 
-    public function scopePorTipo($query, $tipo)
+    public function scopeAprovado($query)
     {
-        return $query->where('tipo', $tipo);
+        return $query->where('status', 'aprovado');
+    }
+
+    public function scopePendente($query)
+    {
+        return $query->where('status', 'pendente');
+    }
+
+    public function scopeCancelado($query)
+    {
+        return $query->where('status', 'cancelado');
+    }
+
+    public function scopeRecentes($query)
+    {
+        return $query->orderBy('created_at', 'desc');
     }
 
     // Acessors
-    public function getValorFormatadoAttribute()
-    {
-        return 'R$ ' . number_format($this->valor, 2, ',', '.');
-    }
-
     public function getStatusFormatadoAttribute()
     {
         $status = [
             'pendente' => 'Pendente',
             'aprovado' => 'Aprovado',
-            'rejeitado' => 'Rejeitado',
             'cancelado' => 'Cancelado',
-            'processando' => 'Processando',
+            'reembolsado' => 'Reembolsado'
         ];
 
         return $status[$this->status] ?? $this->status;
+    }
+
+    public function getValorFormatadoAttribute()
+    {
+        return 'R$ ' . number_format($this->valor, 2, ',', '.');
+    }
+
+    public function getFormaPagamentoFormatadaAttribute()
+    {
+        $formas = [
+            'pix' => 'PIX',
+            'cartao_credito' => 'Cartão de Crédito',
+            'cartao_debito' => 'Cartão de Débito',
+            'boleto' => 'Boleto'
+        ];
+
+        return $formas[$this->forma_pagamento] ?? $this->forma_pagamento;
     }
 }

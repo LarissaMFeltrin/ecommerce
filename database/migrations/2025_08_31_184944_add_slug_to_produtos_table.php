@@ -11,9 +11,9 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('usuarios', function (Blueprint $table) {
-            $table->boolean('ativo')->default(true)->after('data_nascimento');
-            $table->timestamp('email_verificado_em')->nullable()->after('ativo');
+        Schema::table('produtos', function (Blueprint $table) {
+            $table->string('slug')->nullable()->after('nome');
+            $table->index('slug');
         });
     }
 
@@ -22,8 +22,9 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('usuarios', function (Blueprint $table) {
-            $table->dropColumn(['ativo', 'email_verificado_em']);
+        Schema::table('produtos', function (Blueprint $table) {
+            $table->dropIndex(['slug']);
+            $table->dropColumn('slug');
         });
     }
 };
