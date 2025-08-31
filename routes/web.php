@@ -6,6 +6,7 @@ use App\Http\Controllers\CarrinhoController;
 use App\Http\Controllers\PedidoController;
 use App\Http\Controllers\PagamentoController;
 use App\Http\Controllers\AvaliacaoController;
+use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AuthController;
 
 // Página inicial
@@ -27,14 +28,6 @@ Route::post('/login', [AuthController::class, 'login']);
 Route::get('/register', [AuthController::class, 'showRegister'])->name('register');
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
-
-// Rota de teste para verificar middleware
-Route::get('/test-auth', function () {
-    return response()->json([
-        'authenticated' => \Illuminate\Support\Facades\Auth::check(),
-        'user' => \Illuminate\Support\Facades\Auth::user() ? \Illuminate\Support\Facades\Auth::user()->id : null
-    ]);
-})->middleware('ajax.auth');
 
 // Rotas protegidas (requerem login)
 Route::middleware('auth')->group(function () {
@@ -81,11 +74,50 @@ Route::middleware('auth')->group(function () {
 });
 
 // Rotas de administrador
-Route::middleware(['auth', 'admin'])->group(function () {
-    Route::get('/admin/avaliacoes', [AvaliacaoController::class, 'todas'])->name('admin.avaliacoes.todas');
-    Route::post('/admin/avaliacoes/{avaliacao}/aprovar', [AvaliacaoController::class, 'aprovar'])->name('admin.avaliacoes.aprovar');
-    Route::post('/admin/avaliacoes/{avaliacao}/rejeitar', [AvaliacaoController::class, 'rejeitar'])->name('admin.avaliacoes.rejeitar');
-    Route::post('/admin/avaliacoes/{avaliacao}/responder', [AvaliacaoController::class, 'responder'])->name('admin.avaliacoes.responder');
+Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(function () {
+    // Dashboard
+    Route::get('/', [AdminController::class, 'dashboard'])->name('dashboard');
+
+    // Produtos
+    Route::get('/produtos', [AdminController::class, 'produtos'])->name('produtos.index');
+    Route::get('/produtos/criar', [AdminController::class, 'criarProduto'])->name('produtos.create');
+    Route::post('/produtos', [AdminController::class, 'salvarProduto'])->name('produtos.store');
+    Route::get('/produtos/{produto}/editar', [AdminController::class, 'editarProduto'])->name('produtos.edit');
+    Route::put('/produtos/{produto}', [AdminController::class, 'atualizarProduto'])->name('produtos.update');
+    Route::delete('/produtos/{produto}', [AdminController::class, 'excluirProduto'])->name('produtos.destroy');
+
+    // Usuários
+    Route::get('/usuarios', [AdminController::class, 'usuarios'])->name('usuarios.index');
+    Route::get('/usuarios/{usuario}', [AdminController::class, 'detalhesUsuario'])->name('usuarios.show');
+    Route::post('/usuarios/{usuario}/toggle', [AdminController::class, 'toggleUsuario'])->name('usuarios.toggle');
+
+    // Pedidos
+    Route::get('/pedidos', [AdminController::class, 'pedidos'])->name('pedidos.index');
+    Route::get('/pedidos/{pedido}', [AdminController::class, 'detalhesPedido'])->name('pedidos.show');
+    Route::put('/pedidos/{pedido}/status', [AdminController::class, 'atualizarStatusPedido'])->name('pedidos.status');
+
+    // Categorias
+    Route::get('/categorias', [AdminController::class, 'categorias'])->name('categorias.index');
+    Route::post('/categorias', [AdminController::class, 'salvarCategoria'])->name('categorias.store');
+    Route::put('/categorias/{categoria}', [AdminController::class, 'atualizarCategoria'])->name('categorias.update');
+    Route::delete('/categorias/{categoria}', [AdminController::class, 'excluirCategoria'])->name('categorias.destroy');
+
+    // Avaliações (usando AdminController)
+    Route::get('/avaliacoes', [AdminController::class, 'avaliacoes'])->name('avaliacoes.index');
+    Route::post('/avaliacoes/{avaliacao}/aprovar', [AdminController::class, 'aprovarAvaliacao'])->name('avaliacoes.aprovar');
+    Route::post('/avaliacoes/{avaliacao}/rejeitar', [AdminController::class, 'rejeitarAvaliacao'])->name('avaliacoes.rejeitar');
+
+    // Relatórios
+    Route::get('/relatorios', [AdminController::class, 'relatorios'])->name('relatorios.index');
+
+    // Administradores
+    Route::get('/administradores', [AdminController::class, 'administradores'])->name('administradores.index');
+    Route::get('/administradores/criar', [AdminController::class, 'criarAdministrador'])->name('administradores.create');
+    Route::post('/administradores', [AdminController::class, 'salvarAdministrador'])->name('administradores.store');
+
+    // Configurações
+    Route::get('/configuracoes', [AdminController::class, 'configuracoes'])->name('configuracoes.index');
+    Route::post('/configuracoes', [AdminController::class, 'salvarConfiguracoes'])->name('configuracoes.store');
 });
 
 // Webhook para notificações de pagamento (não requer autenticação)
